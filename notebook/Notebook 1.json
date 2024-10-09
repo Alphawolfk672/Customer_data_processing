@@ -1,0 +1,90 @@
+{
+	"name": "Notebook 1",
+	"properties": {
+		"nbformat": 4,
+		"nbformat_minor": 2,
+		"bigDataPool": {
+			"referenceName": "sparkkeshav672",
+			"type": "BigDataPoolReference"
+		},
+		"sessionProperties": {
+			"driverMemory": "28g",
+			"driverCores": 4,
+			"executorMemory": "28g",
+			"executorCores": 4,
+			"numExecutors": 2,
+			"conf": {
+				"spark.dynamicAllocation.enabled": "false",
+				"spark.dynamicAllocation.minExecutors": "2",
+				"spark.dynamicAllocation.maxExecutors": "2",
+				"spark.autotune.trackingId": "5228aa15-ce2e-4bb4-91c7-30dde2d79d17"
+			}
+		},
+		"metadata": {
+			"saveOutput": true,
+			"enableDebugMode": false,
+			"kernelspec": {
+				"name": "synapse_pyspark",
+				"display_name": "Synapse PySpark"
+			},
+			"language_info": {
+				"name": "python"
+			},
+			"a365ComputeOptions": {
+				"id": "/subscriptions/9072a345-2a6f-46b8-920e-bbcec129efc5/resourceGroups/incubyte/providers/Microsoft.Synapse/workspaces/incubyte-hostpitaldata/bigDataPools/sparkkeshav672",
+				"name": "sparkkeshav672",
+				"type": "Spark",
+				"endpoint": "https://incubyte-hostpitaldata.dev.azuresynapse.net/livyApi/versions/2019-11-01-preview/sparkPools/sparkkeshav672",
+				"auth": {
+					"type": "AAD",
+					"authResource": "https://dev.azuresynapse.net"
+				},
+				"sparkVersion": "3.4",
+				"nodeCount": 3,
+				"cores": 4,
+				"memory": 28,
+				"automaticScaleJobs": false
+			},
+			"sessionKeepAliveTimeout": 30
+		},
+		"cells": [
+			{
+				"cell_type": "code",
+				"metadata": {
+					"microsoft": {
+						"language": "python"
+					}
+				},
+				"source": [
+					"%%pyspark\r\n",
+					"from pyspark.sql import SparkSession\r\n",
+					"import re\r\n",
+					"\r\n",
+					"def extract_date(filename):\r\n",
+					"    match = re.search(r'customer_(\\d{8})\\.csv', filename)\r\n",
+					"    if match:\r\n",
+					"        return match.group(1)\r\n",
+					"    return None\r\n",
+					"\r\n",
+					"# Extract dates from filenames and find the latest\r\n",
+					"file_dates = [(filename, extract_date(filename)) for filename in file_names if extract_date(filename)]\r\n",
+					"\r\n",
+					"# Sort by date to find the latest\r\n",
+					"file_dates.sort(key=lambda x: x[1], reverse=True)\r\n",
+					"latest_file = file_dates[0][0]  \r\n",
+					"\r\n",
+					"\r\n",
+					"spark = SparkSession.builder.getOrCreate()\r\n",
+					"df = spark.read.load('abfss://hospital-data@keshavgen2synapse.dfs.core.windows.net/Customer_data_src/*', format='csv',delimiter='|')\r\n",
+					"\r\n",
+					"\r\n",
+					"\r\n",
+					"\r\n",
+					"df.show()\r\n",
+					""
+				],
+				"execution_count": 7
+			}
+		]
+	}
+}

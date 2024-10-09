@@ -1,0 +1,63 @@
+{
+	"name": "Notebook 2",
+	"properties": {
+		"nbformat": 4,
+		"nbformat_minor": 2,
+		"sessionProperties": {
+			"driverMemory": "28g",
+			"driverCores": 4,
+			"executorMemory": "28g",
+			"executorCores": 4,
+			"numExecutors": 2,
+			"conf": {
+				"spark.dynamicAllocation.enabled": "false",
+				"spark.dynamicAllocation.minExecutors": "2",
+				"spark.dynamicAllocation.maxExecutors": "2",
+				"spark.autotune.trackingId": "17d3523e-9529-4eb9-ab25-75cee0ffa5d3"
+			}
+		},
+		"metadata": {
+			"saveOutput": true,
+			"enableDebugMode": false,
+			"kernelspec": {
+				"name": "synapse_pyspark",
+				"display_name": "python"
+			},
+			"language_info": {
+				"name": "python"
+			},
+			"sessionKeepAliveTimeout": 30
+		},
+		"cells": [
+			{
+				"cell_type": "code",
+				"source": [
+					"from azure.storage.blob import BlobServiceClient\r\n",
+					"\r\n",
+					"# Azure Storage account credentials\r\n",
+					"account_name = \"<your-storage-account>\"\r\n",
+					"account_key = \"<your-storage-account-key>\"\r\n",
+					"\r\n",
+					"# Create a BlobServiceClient using the account name and key\r\n",
+					"blob_service_client = BlobServiceClient(account_url=f\"https://{account_name}.blob.core.windows.net\", credential=account_key)\r\n",
+					"\r\n",
+					"# Specify the container name and directory (if needed)\r\n",
+					"container_name = \"your-container-name\"\r\n",
+					"directory_name = \"path/to/directory/\"  # If you don't have a directory, just leave it as an empty string \"\"\r\n",
+					"\r\n",
+					"# Get the container client\r\n",
+					"container_client = blob_service_client.get_container_client(container_name)\r\n",
+					"\r\n",
+					"# List blobs (files) in the specified directory\r\n",
+					"blob_list = container_client.list_blobs(name_starts_with=directory_name)\r\n",
+					"\r\n",
+					"# Iterate over the blobs and print the names\r\n",
+					"for blob in blob_list:\r\n",
+					"    print(blob.name)\r\n",
+					""
+				],
+				"execution_count": null
+			}
+		]
+	}
+}

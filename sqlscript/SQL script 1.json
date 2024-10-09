@@ -1,0 +1,17 @@
+{
+	"name": "SQL script 1",
+	"properties": {
+		"content": {
+			"query": "-- This is auto-generated code\nSELECT\n    TOP 100 *\nFROM\n    OPENROWSET(\n        BULK 'https://keshavgen2synapse.dfs.core.windows.net/hospital-data/Customer_data_src/customer_09102024.csv',\n        FORMAT = 'CSV',\n        HEADER_ROW=TRUE,\n        PARSER_VERSION = '2.0',\n        FIELDTERMINATOR='|'\n    ) \nWITH\n(\n    Column3 VARCHAR(255) COLLATE Latin1_General_100_BIN2_UTF8,\n    Column4 VARCHAR(18) COLLATE Latin1_General_100_BIN2_UTF8\n\n) AS [result]",
+			"metadata": {
+				"language": "sql"
+			},
+			"currentConnection": {
+				"databaseName": "master",
+				"poolName": "Built-in"
+			},
+			"resultLimit": 5000
+		},
+		"type": "SqlQuery"
+	}
+}
