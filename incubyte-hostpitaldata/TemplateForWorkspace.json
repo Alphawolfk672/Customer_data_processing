@@ -22,24 +22,6 @@
 	},
 	"resources": [
 		{
-			"name": "[concat(parameters('workspaceName'), '/Customer_db')]",
-			"type": "Microsoft.Synapse/workspaces/sqlPools",
-			"apiVersion": "2019-06-01-preview",
-			"properties": {
-				"annotations": []
-			},
-			"dependsOn": []
-		},
-		{
-			"name": "[concat(parameters('workspaceName'), '/sparkkeshav672')]",
-			"type": "Microsoft.Synapse/workspaces/bigDataPools",
-			"apiVersion": "2019-06-01-preview",
-			"properties": {
-				"annotations": []
-			},
-			"dependsOn": []
-		},
-		{
 			"name": "[concat(parameters('workspaceName'), '/incubyte-hostpitaldata-WorkspaceDefaultSqlServer')]",
 			"type": "Microsoft.Synapse/workspaces/linkedServices",
 			"apiVersion": "2019-06-01-preview",
@@ -231,7 +213,7 @@
 						"spark.dynamicAllocation.enabled": "false",
 						"spark.dynamicAllocation.minExecutors": "2",
 						"spark.dynamicAllocation.maxExecutors": "2",
-						"spark.autotune.trackingId": "17d3523e-9529-4eb9-ab25-75cee0ffa5d3"
+						"spark.autotune.trackingId": "4e7aa0cd-49e9-44c8-9036-dca4c5892024"
 					}
 				},
 				"metadata": {
@@ -249,29 +231,23 @@
 				"cells": [
 					{
 						"cell_type": "code",
+						"metadata": {},
 						"source": [
-							"from azure.storage.blob import BlobServiceClient\r\n",
+							"from delta.tables import DeltaTable\r\n",
 							"\r\n",
-							"# Azure Storage account credentials\r\n",
-							"account_name = \"<your-storage-account>\"\r\n",
-							"account_key = \"<your-storage-account-key>\"\r\n",
+							"# Load the existing Delta table\r\n",
+							"delta_table = DeltaTable.forPath(spark, staging_table_path)\r\n",
 							"\r\n",
-							"# Create a BlobServiceClient using the account name and key\r\n",
-							"blob_service_client = BlobServiceClient(account_url=f\"https://{account_name}.blob.core.windows.net\", credential=account_key)\r\n",
+							"# Load new data for upsert (assuming new data is loaded as a DataFrame)\r\n",
+							"new_data_df = spark.read.csv(\"abfss://<container>@<storage_account>.dfs.core.windows.net/data/new_data.csv\", header=True, inferSchema=True)\r\n",
 							"\r\n",
-							"# Specify the container name and directory (if needed)\r\n",
-							"container_name = \"your-container-name\"\r\n",
-							"directory_name = \"path/to/directory/\"  # If you don't have a directory, just leave it as an empty string \"\"\r\n",
-							"\r\n",
-							"# Get the container client\r\n",
-							"container_client = blob_service_client.get_container_client(container_name)\r\n",
-							"\r\n",
-							"# List blobs (files) in the specified directory\r\n",
-							"blob_list = container_client.list_blobs(name_starts_with=directory_name)\r\n",
-							"\r\n",
-							"# Iterate over the blobs and print the names\r\n",
-							"for blob in blob_list:\r\n",
-							"    print(blob.name)\r\n",
+							"# Perform upsert using Delta's MERGE feature\r\n",
+							"delta_table.alias(\"staging\").merge(\r\n",
+							"    new_data_df.alias(\"new_data\"),\r\n",
+							"    \"staging.customer_id = new_data.customer_id\"\r\n",
+							").whenMatchedUpdateAll() \\\r\n",
+							" .whenNotMatchedInsertAll() \\\r\n",
+							" .execute()\r\n",
 							""
 						],
 						"outputs": [],
@@ -317,6 +293,315 @@
 			},
 			"dependsOn": [],
 			"location": "centralindia"
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/staging_table')]",
+			"type": "Microsoft.Synapse/workspaces/notebooks",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"nbformat": 4,
+				"nbformat_minor": 2,
+				"bigDataPool": {
+					"referenceName": "sparkkeshav672",
+					"type": "BigDataPoolReference"
+				},
+				"sessionProperties": {
+					"driverMemory": "28g",
+					"driverCores": 4,
+					"executorMemory": "28g",
+					"executorCores": 4,
+					"numExecutors": 2,
+					"conf": {
+						"spark.dynamicAllocation.enabled": "false",
+						"spark.dynamicAllocation.minExecutors": "2",
+						"spark.dynamicAllocation.maxExecutors": "2",
+						"spark.autotune.trackingId": "da86c121-b051-4333-a3ed-fce5c6b8002a"
+					}
+				},
+				"metadata": {
+					"saveOutput": true,
+					"enableDebugMode": false,
+					"kernelspec": {
+						"name": "synapse_pyspark",
+						"display_name": "Synapse PySpark"
+					},
+					"language_info": {
+						"name": "python"
+					},
+					"a365ComputeOptions": {
+						"id": "/subscriptions/9072a345-2a6f-46b8-920e-bbcec129efc5/resourceGroups/incubyte/providers/Microsoft.Synapse/workspaces/incubyte-hostpitaldata/bigDataPools/sparkkeshav672",
+						"name": "sparkkeshav672",
+						"type": "Spark",
+						"endpoint": "https://incubyte-hostpitaldata.dev.azuresynapse.net/livyApi/versions/2019-11-01-preview/sparkPools/sparkkeshav672",
+						"auth": {
+							"type": "AAD",
+							"authResource": "https://dev.azuresynapse.net"
+						},
+						"sparkVersion": "3.4",
+						"nodeCount": 3,
+						"cores": 4,
+						"memory": 28,
+						"automaticScaleJobs": false
+					},
+					"sessionKeepAliveTimeout": 30
+				},
+				"cells": [
+					{
+						"cell_type": "code",
+						"metadata": {
+							"microsoft": {
+								"language": "python"
+							}
+						},
+						"source": [
+							"%%pyspark\r\n",
+							"from pyspark.sql import SparkSession\r\n",
+							"\r\n",
+							"# Initialize Spark session\r\n",
+							"spark = SparkSession.builder \\\r\n",
+							"    .appName(\"Customer_ETL\") \\\r\n",
+							"    .config(\"spark.sql.extensions\", \"io.delta.sql.DeltaSparkSessionExtension\") \\\r\n",
+							"    .config(\"spark.sql.catalog.spark_catalog\", \"org.apache.spark.sql.delta.catalog.DeltaCatalog\") \\\r\n",
+							"    .getOrCreate()\r\n",
+							"\r\n",
+							"\r\n",
+							"\r\n",
+							"# Create Delta table for staging\r\n",
+							"staging_table_path = \"abfss://hospital-data@keshavgen2synapse.dfs.core.windows.net/delta/staging_table\"\r\n",
+							"\r\n",
+							"# Create an empty Delta table if it doesn't exist\r\n",
+							"spark.sql(f\"\"\"\r\n",
+							"CREATE TABLE IF NOT EXISTS delta.`{staging_table_path}` (\r\n",
+							"    Customer_Name STRING,\r\n",
+							"    Customer_Id STRING,\r\n",
+							"    Open_Date DATE,\r\n",
+							"    Last_Consulted_Date DATE,\r\n",
+							"    Vaccination_Id STRING,\r\n",
+							"    Dr_Name STRING,\r\n",
+							"    State STRING,\r\n",
+							"    Country STRING,\r\n",
+							"    post_code INT,\r\n",
+							"    DOB DATE,\r\n",
+							"    Is_Active STRING\r\n",
+							") USING DELTA\r\n",
+							"\"\"\")\r\n",
+							"\r\n",
+							"spark.sql(f\"\"\"\r\n",
+							"    CREATE TABLE IF NOT EXISTS customer_staging\r\n",
+							"    USING DELTA\r\n",
+							"    LOCATION '{staging_table_path}'\r\n",
+							"\"\"\")\r\n",
+							""
+						],
+						"outputs": [],
+						"execution_count": 67
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"jupyter": {
+								"source_hidden": false,
+								"outputs_hidden": false
+							},
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"from pyspark.sql import SparkSession\r\n",
+							"from pyspark.sql.types import StructType, StructField, StringType, DateType\r\n",
+							"from pyspark.sql.functions import col,to_date\r\n",
+							"from pyspark.sql import functions as F\r\n",
+							"input_path = \"abfss://hospital-data@keshavgen2synapse.dfs.core.windows.net/Customer_data_src/customer_09102024.csv\"\r\n",
+							"\r\n",
+							"# Load CSV data into DataFrame\r\n",
+							"df = spark.read.csv(input_path, header=True,sep='|')\r\n",
+							"df_filter = df.withColumn(\"Open_Date\", to_date(col(\"Open_Date\"), \"yyyyMMdd\"))\r\n",
+							"df_filter = df_filter.withColumn(\"Last_Consulted_Date\" , to_date(col(\"Last_Consulted_Date\"), \"yyyyMMdd\"))\r\n",
+							"df_filter = df_filter.withColumn(\"DOB\", to_date(col(\"DOB\"), \"ddMMyyyy\"))\r\n",
+							"df_filter = df_filter.withColumn(\"post_code\", F.lit(None).cast(\"INT\"))\r\n",
+							"df_filter = df_filter.withColumn(\"Is_Active\", col(\"Is_Active \"))\r\n",
+							"\r\n",
+							"\r\n",
+							"# Select the DataFrame with reordered columns\r\n",
+							"df_final = df_filter.select(\"Customer_Name\", \"Customer_Id\", \"Open_Date\", \"Last_Consulted_Date\", \"Vaccination_Id\", \"Dr_Name\", \"State\", \"Country\", \"post_code\"\r\n",
+							", \"DOB\", \"Is_Active\")\r\n",
+							"df_final.show()\r\n",
+							"#df_filter.show()\r\n",
+							"\r\n",
+							"#df_filter.explain()\r\n",
+							"\r\n",
+							"#df_filter.describe()\r\n",
+							"# Write data to Delta staging table\r\n",
+							"df_final.write.format(\"delta\").mode(\"append\").save(staging_table_path)"
+						],
+						"outputs": [],
+						"execution_count": 93
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"jupyter": {
+								"source_hidden": false,
+								"outputs_hidden": false
+							},
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"#df_result = spark.sql(\"SELECT * FROM customer_staging\")\r\n",
+							"#df_result.show()\r\n",
+							"spark.sql(\"SHOW TABLES\").show()\r\n",
+							""
+						],
+						"outputs": [],
+						"execution_count": 100
+					}
+				]
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/Create_base_table')]",
+			"type": "Microsoft.Synapse/workspaces/notebooks",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"nbformat": 4,
+				"nbformat_minor": 2,
+				"sessionProperties": {
+					"driverMemory": "28g",
+					"driverCores": 4,
+					"executorMemory": "28g",
+					"executorCores": 4,
+					"numExecutors": 2,
+					"conf": {
+						"spark.dynamicAllocation.enabled": "false",
+						"spark.dynamicAllocation.minExecutors": "2",
+						"spark.dynamicAllocation.maxExecutors": "2",
+						"spark.autotune.trackingId": "8d645e71-337e-4540-bd64-9a6824eea250"
+					}
+				},
+				"metadata": {
+					"saveOutput": true,
+					"enableDebugMode": false,
+					"kernelspec": {
+						"name": "synapse_pyspark",
+						"display_name": "python"
+					},
+					"language_info": {
+						"name": "python"
+					},
+					"sessionKeepAliveTimeout": 30
+				},
+				"cells": [
+					{
+						"cell_type": "code",
+						"metadata": {
+							"microsoft": {
+								"language": "python"
+							}
+						},
+						"source": [
+							"%%pyspark\r\n",
+							"from pyspark.sql import SparkSession\r\n",
+							"from pyspark.sql import functions as F\r\n",
+							"\r\n",
+							"# Initialize Spark session\r\n",
+							"spark = SparkSession.builder \\\r\n",
+							"    .appName(\"Optimized Create Base Tables from Country\") \\\r\n",
+							"    .config(\"spark.sql.extensions\", \"io.delta.sql.DeltaSparkSessionExtension\") \\\r\n",
+							"    .config(\"spark.sql.catalog.spark_catalog\", \"org.apache.spark.sql.delta.catalog.DeltaCatalog\") \\\r\n",
+							"    .getOrCreate()\r\n",
+							"\r\n",
+							"# Define the path to your staging Delta table\r\n",
+							"staging_table_path = \"abfss://<container>@<storage_account>.dfs.core.windows.net/delta/staging_table\"\r\n",
+							"\r\n",
+							"# Step 1: Load the Delta table into a DataFrame and create a temporary view\r\n",
+							"df_staging = spark.read.format(\"delta\").load(staging_table_path)\r\n",
+							"df_staging.createOrReplaceTempView(\"customer_staging\")\r\n",
+							"\r\n",
+							"# Step 2: Get distinct countries using SQL\r\n",
+							"distinct_countries = spark.sql(\"SELECT DISTINCT Country FROM customer_staging\").collect()\r\n",
+							"\r\n",
+							"# Step 3: Create DataFrames for each country and store them in a dictionary\r\n",
+							"country_dfs = {}\r\n",
+							"for row in distinct_countries:\r\n",
+							"    country = row['Country']\r\n",
+							"    country_dfs[country] = spark.sql(f\"SELECT * FROM customer_staging WHERE Country = '{country}'\")\r\n",
+							"\r\n",
+							"# Step 4: Write each country's DataFrame to Delta table in one go\r\n",
+							"for country, df_country in country_dfs.items():\r\n",
+							"    # Define the path for the country-specific Delta table\r\n",
+							"    country_table_path = f\"abfss://<container>@<storage_account>.dfs.core.windows.net/delta/customer_{country}\"\r\n",
+							"    \r\n",
+							"    # Create a new Delta table for each country\r\n",
+							"    spark.sql(f\"\"\"\r\n",
+							"        CREATE TABLE IF NOT EXISTS delta.`{country_table_path}` (\r\n",
+							"            Customer_Name STRING,\r\n",
+							"            Customer_Id STRING,\r\n",
+							"            Open_Date DATE,\r\n",
+							"            Last_Consulted_Date DATE,\r\n",
+							"            Vaccination_Id STRING,\r\n",
+							"            Dr_Name STRING,\r\n",
+							"            State STRING,\r\n",
+							"            Country STRING,\r\n",
+							"            Post_Code INT,\r\n",
+							"            DOB DATE,\r\n",
+							"            Is_Active STRING\r\n",
+							"        ) USING DELTA\r\n",
+							"    \"\"\")\r\n",
+							"    \r\n",
+							"    # Write the country-specific DataFrame to the Delta table\r\n",
+							"    df_country.write.format(\"delta\").mode(\"append\").save(country_table_path)\r\n",
+							"\r\n",
+							"    print(f\"Created and populated table for country: {country}\")\r\n",
+							"\r\n",
+							"# Optionally: Show tables created\r\n",
+							"spark.sql(\"SHOW TABLES\").show()\r\n",
+							"\r\n",
+							"\r\n",
+							"\r\n",
+							"\r\n",
+							"\r\n",
+							"\r\n",
+							"\r\n",
+							"\r\n",
+							"\r\n",
+							"\r\n",
+							"\r\n",
+							"\r\n",
+							"\r\n",
+							"\r\n",
+							"\r\n",
+							"\r\n",
+							"\r\n",
+							"\r\n",
+							"from delta.tables import DeltaTable\r\n",
+							"\r\n",
+							"deltaTable = DeltaTable.forPath(spark, \"<base_table_path>\")\r\n",
+							"\r\n",
+							"# Assuming df_staging contains the new data to be inserted/updated\r\n",
+							"deltaTable.alias(\"base\").merge(\r\n",
+							"    df_staging.alias(\"staging\"),\r\n",
+							"    \"base.Customer_Id = staging.Customer_Id\"\r\n",
+							").whenMatchedUpdateAll() \\\r\n",
+							" .whenNotMatchedInsertAll() \\\r\n",
+							" .execute()\r\n",
+							"\r\n",
+							"\r\n",
+							""
+						],
+						"outputs": [],
+						"execution_count": null
+					}
+				]
+			},
+			"dependsOn": []
 		}
 	]
 }
