@@ -17,7 +17,7 @@
 				"spark.dynamicAllocation.enabled": "false",
 				"spark.dynamicAllocation.minExecutors": "2",
 				"spark.dynamicAllocation.maxExecutors": "2",
-				"spark.autotune.trackingId": "8cbc4df4-8e84-4bbd-b30c-336e842264f4"
+				"spark.autotune.trackingId": "9f2ce5ef-93f2-48c5-b309-40b750621f91"
 			}
 		},
 		"metadata": {
@@ -87,6 +87,12 @@
 					"    Is_Active STRING\r\n",
 					") USING DELTA\r\n",
 					"\"\"\")\r\n",
+					"\r\n",
+					"spark.sql(f\"\"\"\r\n",
+					"    CREATE TABLE IF NOT EXISTS customer_staging\r\n",
+					"    USING DELTA\r\n",
+					"    LOCATION '{staging_table_path}'\r\n",
+					"\"\"\")\r\n",
 					""
 				],
 				"execution_count": 67
@@ -148,9 +154,12 @@
 					}
 				},
 				"source": [
+					"#df_result = spark.sql(\"SELECT * FROM customer_staging\")\r\n",
+					"#df_result.show()\r\n",
+					"spark.sql(\"SHOW TABLES\").show()\r\n",
 					""
 				],
-				"execution_count": 64
+				"execution_count": 100
 			}
 		]
 	}

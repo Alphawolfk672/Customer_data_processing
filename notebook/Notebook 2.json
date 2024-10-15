@@ -13,7 +13,7 @@
 				"spark.dynamicAllocation.enabled": "false",
 				"spark.dynamicAllocation.minExecutors": "2",
 				"spark.dynamicAllocation.maxExecutors": "2",
-				"spark.autotune.trackingId": "17d3523e-9529-4eb9-ab25-75cee0ffa5d3"
+				"spark.autotune.trackingId": "b83ee63a-b149-4c4c-835c-98c4b90ea66a"
 			}
 		},
 		"metadata": {
@@ -32,28 +32,21 @@
 			{
 				"cell_type": "code",
 				"source": [
-					"from azure.storage.blob import BlobServiceClient\r\n",
+					"from delta.tables import DeltaTable\r\n",
 					"\r\n",
-					"# Azure Storage account credentials\r\n",
-					"account_name = \"<your-storage-account>\"\r\n",
-					"account_key = \"<your-storage-account-key>\"\r\n",
+					"# Load the existing Delta table\r\n",
+					"delta_table = DeltaTable.forPath(spark, staging_table_path)\r\n",
 					"\r\n",
-					"# Create a BlobServiceClient using the account name and key\r\n",
-					"blob_service_client = BlobServiceClient(account_url=f\"https://{account_name}.blob.core.windows.net\", credential=account_key)\r\n",
+					"# Load new data for upsert (assuming new data is loaded as a DataFrame)\r\n",
+					"new_data_df = spark.read.csv(\"abfss://<container>@<storage_account>.dfs.core.windows.net/data/new_data.csv\", header=True, inferSchema=True)\r\n",
 					"\r\n",
-					"# Specify the container name and directory (if needed)\r\n",
-					"container_name = \"your-container-name\"\r\n",
-					"directory_name = \"path/to/directory/\"  # If you don't have a directory, just leave it as an empty string \"\"\r\n",
-					"\r\n",
-					"# Get the container client\r\n",
-					"container_client = blob_service_client.get_container_client(container_name)\r\n",
-					"\r\n",
-					"# List blobs (files) in the specified directory\r\n",
-					"blob_list = container_client.list_blobs(name_starts_with=directory_name)\r\n",
-					"\r\n",
-					"# Iterate over the blobs and print the names\r\n",
-					"for blob in blob_list:\r\n",
-					"    print(blob.name)\r\n",
+					"# Perform upsert using Delta's MERGE feature\r\n",
+					"delta_table.alias(\"staging\").merge(\r\n",
+					"    new_data_df.alias(\"new_data\"),\r\n",
+					"    \"staging.customer_id = new_data.customer_id\"\r\n",
+					").whenMatchedUpdateAll() \\\r\n",
+					" .whenNotMatchedInsertAll() \\\r\n",
+					" .execute()\r\n",
 					""
 				],
 				"execution_count": null
